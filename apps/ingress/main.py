@@ -50,6 +50,7 @@ async def feishu_webhook(request: Request, body: bytes = Depends(verify_feishu_s
 @app.post("/feishu/callback")
 async def feishu_callback(request: Request, body: bytes = Depends(verify_feishu_signature)) -> dict:
     payload = json.loads(body or b"{}")
+    log.info("feishu callback payload: %s", payload)
 
     # 1. URL 验证 challenge
     if payload.get("type") == "url_verification":
@@ -59,6 +60,7 @@ async def feishu_callback(request: Request, body: bytes = Depends(verify_feishu_
     if payload.get("type") == "card.action.trigger":
         return await _handle_card_action(payload)
 
+    log.warning("unhandled callback type: %s", payload.get("type"))
     return {"status": "ignored"}
 
 
