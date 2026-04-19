@@ -47,6 +47,21 @@ async def feishu_webhook(request: Request, body: bytes = Depends(verify_feishu_s
     return {"status": "ignored", "event_type": event_type}
 
 
+@app.post("/feishu/callback")
+async def feishu_callback(request: Request, body: bytes = Depends(verify_feishu_signature)) -> dict:
+    payload = json.loads(body or b"{}")
+
+    # 1. URL 验证 challenge
+    if payload.get("type") == "url_verification":
+        return {"challenge": payload.get("challenge")}
+
+    # 2. 卡片交互回调
+    if payload.get("type") == "card.action.trigger":
+        return await _handle_card_action(payload)
+
+    return {"status": "ignored"}
+
+
 async def _handle_message(event: dict[str, Any]) -> dict:
     s = get_settings()
     msg = event.get("message") or {}
