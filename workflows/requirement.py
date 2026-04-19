@@ -29,12 +29,17 @@ class RequirementWorkflow:
         self.prd: Optional[PrdResult] = None
         self.commit: Optional[GitCommitResult] = None
         self._p0_confirmed: bool = False
+        self._p0_revise_requested: bool = False
         self._p1_decision: Optional[str] = None  # "approve" | "reject"
         self.cost_used_usd: float = 0.0
 
     @workflow.signal
     def p0_confirm(self, by: str = "") -> None:
         self._p0_confirmed = True
+
+    @workflow.signal
+    def p0_revise(self, by: str = "") -> None:
+        self._p0_revise_requested = True
 
     @workflow.signal
     def p1_approve(self, by: str = "") -> None:
@@ -89,7 +94,11 @@ class RequirementWorkflow:
                 retry_policy=retry,
             )
 
-        await workflow.wait_condition(lambda: self._p0_confirmed, timeout=timedelta(hours=24))
+        await workflow.wait_condition(lambda: self._p0_confirmed or self._p0_revise_requested, timeout=timedelta(hours=24))
+
+        if self._p0_revise_requested:
+            self.lifecycle_state = "revision_requested"
+            return self.status()
 
         # ---------- P1: 生成 PRD ----------
         self.current_phase = "P1"

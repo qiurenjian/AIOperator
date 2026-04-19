@@ -118,12 +118,13 @@ async def _handle_card_action(event: dict[str, Any]) -> dict:
 
     signal_map = {
         "p0_confirm": "p0_confirm",
+        "p0_revise": "p0_revise",
         "p1_approve": "p1_approve",
         "p1_reject": "p1_reject",
     }
     signal = signal_map.get(action_name)
     if not signal:
-        return {"toast": {"type": "info", "content": f"未知操作: {action_name}"}}
+        return {"toast": {"type": "error", "content": f"未知操作: {action_name}"}}
 
     client = await get_temporal_client()
     handle = client.get_workflow_handle(f"req-{req_id}")
