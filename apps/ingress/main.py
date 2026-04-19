@@ -107,13 +107,16 @@ async def _handle_message(event: dict[str, Any]) -> dict:
 
 
 async def _handle_card_action(event: dict[str, Any]) -> dict:
+    log.info("card action event: %s", event)
     action = event.get("action") or {}
     value = action.get("value") or {}
     operator = event.get("operator") or {}
 
     action_name = value.get("action")
     req_id = value.get("req_id")
+    log.info("parsed action=%s req_id=%s", action_name, req_id)
     if not (action_name and req_id):
+        log.warning("missing action/req_id in card callback")
         raise HTTPException(status_code=400, detail="missing action/req_id")
 
     signal_map = {
