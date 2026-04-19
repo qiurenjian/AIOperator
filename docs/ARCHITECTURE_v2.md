@@ -465,10 +465,10 @@ class TddImplementWorkflow:
         # P3B: implementation
         impl_lane = await workflow.execute_activity(
             resolve_execution_lane,
-            LaneRequest(kind="codex", risk=risk, phase="p3_impl"),
+            LaneRequest(kind="openai", risk=risk, phase="p3_impl"),
         )
         impl_result = await workflow.execute_activity(
-            codex_implement, design, test_result,
+            openai_implement, design, test_result,
             task_queue=impl_lane.task_queue,
             start_to_close_timeout=timedelta(hours=2),
             heartbeat_timeout=timedelta(minutes=5),
@@ -502,10 +502,10 @@ class TddImplementWorkflow:
 | `claude_generate_prd` | llm-* | 20 min | 3 min |
 | `claude_generate_design` | llm-* | 30 min | 3 min |
 | `claude_generate_tests` | llm-* | 20 min | 3 min |
-| `codex_implement` | llm-* | 2 hr | 5 min |
+| `openai_implement` | llm-* | 2 hr | 5 min |
 | `claude_review` | llm-* | 15 min | 3 min |
 | `claude_lite_review` | llm-* | 2 min | - |
-| `openai_review` | `review-openai` | 10 min | - |
+| `openai_review` | llm-* | 10 min | - |
 | `git_commit` | `lite` | 1 min | - |
 | `run_ci_locally` | `build-rn-*` | 30 min | 5 min |
 | `eas_build` | `release-ios-m5` | 1 hr | 5 min |
@@ -513,6 +513,8 @@ class TddImplementWorkflow:
 | `feishu_send_card` | `lite` | 30 sec | - |
 | `bitable_upsert` | `lite` | 30 sec | - |
 | `feishu_doc_sync` | `lite` | 1 min | - |
+
+**v2.2 修正（2026-04-19）**：`codex_implement` 改名为 `openai_implement`，使用 OpenAI API（gpt-4o）而非 Codex CLI。Task queue 保持 `llm-*`（与 Claude activities 共用）。
 
 ### 7.3.1 预算守卫插入点（v2.1 补）
 
@@ -527,7 +529,7 @@ class TddImplementWorkflow:
 - `claude_generate_prd`
 - `claude_generate_design`
 - `claude_generate_tests`
-- `codex_implement`
+- `openai_implement`
 - `claude_review`
 - `openai_review`
 
@@ -937,7 +939,7 @@ triggers_to_release_critical:
 │   └── release.py                # ReleaseWorkflow (child)
 ├── activities/
 │   ├── claude/                   # claude_generate_prd, claude_review, ...
-│   ├── codex/                    # codex_implement
+│   ├── openai/                   # openai_implement, openai_review
 │   ├── openai/                   # openai_review
 │   ├── feishu/                   # feishu_send_card, feishu_doc_sync
 │   ├── bitable/                  # bitable_upsert

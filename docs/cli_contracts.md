@@ -14,10 +14,10 @@
 | `claude_generate_prd` | **CLI** (Claude Code) | sonnet-4-6 | 需读项目历史 PRD 作 few-shot，CLI 上下文管理更好 |
 | `claude_generate_design` | **CLI** (Claude Code) | sonnet-4-6 | 需扫描代码仓库，CLI 自带 Read/Grep/Glob |
 | `claude_generate_tests` | **CLI** (Claude Code) | sonnet-4-6 | 需读 design + 现有测试风格，CLI 适合 |
-| `codex_implement` | **CLI** (Codex) | Codex Pro | Codex 专长实现 + 已有 Pro 订阅 |
+| `openai_implement` | **API** (OpenAI) | gpt-4o 或 o1-preview | **Plan B 启用**：Codex CLI 不可用，改用 OpenAI API 直调 |
 | `claude_review` | **CLI** (Claude Code) | sonnet-4-6 | 需读完整 diff + design |
 | `claude_lite_review` | **API** (Haiku) | claude-haiku-4-5 | 只看 diff 摘要 + AC 映射，API 够用且便宜 |
-| `openai_review` | **API** (OpenAI) | gpt-5 或 o4 | 跨家独立终审 |
+| `openai_review` | **API** (OpenAI) | gpt-4o | 跨家独立终审 |
 
 **规则**：
 - **API 适合**：短任务、结构化输出、不需要文件系统访问
@@ -75,21 +75,23 @@ async def claude_generate_prd(input: PrdInput) -> PrdOutput:
     return PrdOutput(
         prd_path=f"{workdir}/PRD.md",
         ac_path=f"{workdir}/acceptance_criteria.json",
-        cost_usd=result["cost_usd"],
-        input_tokens=result["input_tokens"],
-        output_tokens=result["output_tokens"],
+        cost_usd=result["total_cost_usd"],
+        input_tokens=result["usage"]["input_tokens"],
+        output_tokens=result["usage"]["output_tokens"],
     )
 ```
 
-### 1.3 待 Day 2 实测项
+### 1.3 Day 2 实测结果（M5 环境，2026-04-19）
 
-- [ ] `claude -p` 在云端服务器上能跑（已知装了 Claude Code）
-- [ ] `--output-format json` 实际返回字段：`[待实测：列出 keys]`
-- [ ] cost_usd / input_tokens / output_tokens 字段是否在 JSON 里：`[待实测]`
-- [ ] `--max-turns` 默认值：`[待实测]`
-- [ ] 鉴权方式（OAuth login vs API key 环境变量）：`[待实测]`
-- [ ] 长任务（30 min+）的 stdout buffering 行为：`[待实测]`
-- [ ] 多个 `claude -p` 进程并发是否抢同一 session：`[待实测]`
+- [x] `claude -p` 在 M5 上能跑（版本 2.1.110）
+- [x] `--output-format json` 实际返回字段：`type, subtype, is_error, duration_ms, num_turns, result, stop_reason, session_id, total_cost_usd, usage, modelUsage, permission_denials, terminal_reason, fast_mode_state, uuid`
+- [x] cost_usd / input_tokens / output_tokens 字段在 JSON 里：**是**，路径为 `total_cost_usd`, `usage.input_tokens`, `usage.output_tokens`
+- [x] `--max-turns` 默认值：未传时默认无限制，建议显式传 `--max-turns 30`
+- [x] 鉴权方式：**OAuth**（需提前 `claude login`）
+- [ ] 长任务（30 min+）的 stdout buffering 行为：`[待云端实测]`
+- [ ] 多个 `claude -p` 进程并发是否抢同一 session：`[待云端实测]`
+
+**Activity 包装修正**：解析 JSON 时用 `result["total_cost_usd"]`, `result["usage"]["input_tokens"]`, `result["usage"]["output_tokens"]`。
 
 ### 1.4 Day 2 验证命令
 
@@ -118,16 +120,14 @@ codex exec "PROMPT" \
 
 > ⚠️ Codex CLI 的具体 headless 子命令、参数、认证方式 **必须 Day 2 实测确认**。本节是基于 OpenAI Codex CLI 公开文档的猜测，不是事实。
 
-### 2.2 待 Day 2 实测项
+### 2.2 Day 2 实测结果（2026-04-19）
 
-- [ ] Codex CLI 二进制名（`codex` / `codex-cli` / 别的）：`[待实测]`
-- [ ] headless 子命令：`[待实测]`
-- [ ] 认证方式（Codex Pro 订阅怎么从 CLI 用？OAuth？API key？）：`[待实测：关键]`
-- [ ] 是否支持 `--output-format json`：`[待实测]`
-- [ ] 是否支持指定 cwd：`[待实测]`
-- [ ] 长任务超时 / 续跑 / 增量保存机制：`[待实测]`
-- [ ] 多进程并发是否安全：`[待实测]`
-- [ ] 与 Claude Code CLI 共存时是否冲突（端口/socket/auth state）：`[待实测]`
+- [x] Codex CLI 二进制名：**不存在**
+- [x] 云端服务器搜索结果：无任何 codex 相关二进制或 npm 包
+- [x] 认证方式：**无法验证**（CLI 本身不存在）
+- [x] **结论**：Codex CLI headless 模式在当前环境不可用
+
+**决策**：立刻切换到 Plan B（OpenAI API 直调）
 
 ### 2.3 Day 2 验证命令
 
@@ -142,13 +142,52 @@ cat hello.py
 cat result.txt
 ```
 
-### 2.4 备选方案（如果 Codex CLI headless 不可用）
+### 2.4 Plan B 已启用（2026-04-19）
 
-如果 Day 2 发现 Codex CLI 无 headless / 认证不可脚本化：
+**原因**：Day 2 实测确认 Codex CLI 在云端不存在。
 
-**Plan B**：用 OpenAI API（`gpt-4-codex` 等价模型）直接调，放弃 Codex Pro 订阅的成本优势但获得稳定性。
+**变更**：
+1. `codex_implement` activity 改为调用 OpenAI API
+2. 使用模型：`gpt-4o` 或 `o1-preview`（Week 1 实测后确定）
+3. Task queue：从独立的 `codex-*` 改为 `llm-cloud`（与 Claude activities 共用）
+4. 成本估算：按 OpenAI API 单价重新计算（比 Codex Pro 订阅贵，但有 `reserve_budget` 守卫）
 
-**Plan C**：Codex 改用 VSCode 中转——M5 上写一个 VSCode 扩展接收 workflow 触发并把生成结果通过 API 回传。复杂度高，最后选项。
+**实现模板**（替代 §2.1）：
+
+```python
+# activities/openai/implement.py
+from openai import AsyncOpenAI
+
+client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+async def openai_implement(
+    design: str,
+    test_contract: dict,
+    workdir: str,
+) -> dict:
+    prompt = render_template("implement.j2", design=design, test_contract=test_contract)
+    
+    response = await client.chat.completions.create(
+        model="gpt-4o",  # 或 o1-preview
+        messages=[
+            {"role": "system", "content": IMPLEMENT_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+    )
+    
+    # 解析生成的代码，写入 workdir
+    # ...
+    
+    return {
+        "files_changed": [...],
+        "cost_usd": _calc_cost("gpt-4o", response.usage),
+        "input_tokens": response.usage.prompt_tokens,
+        "output_tokens": response.usage.completion_tokens,
+    }
+```
+
+**Plan C**（VSCode 中转）暂不考虑。
 
 ---
 
@@ -222,10 +261,10 @@ ESTIMATES = {
     "claude_generate_prd": (15000, 3000, "claude-sonnet-4-6"),
     "claude_generate_design": (30000, 5000, "claude-sonnet-4-6"),
     "claude_generate_tests": (20000, 4000, "claude-sonnet-4-6"),
-    "codex_implement": (50000, 10000, "codex-pro"),  # 估算
+    "openai_implement": (50000, 10000, "gpt-4o"),  # Plan B: 改用 OpenAI API
     "claude_review": (40000, 2000, "claude-sonnet-4-6"),
     "claude_lite_review": (8000, 500, "claude-haiku-4-5"),
-    "openai_review": (40000, 2000, "gpt-5"),
+    "openai_review": (40000, 2000, "gpt-4o"),
 }
 
 def estimate_cost(activity_type: str, multiplier: float = 1.5) -> float:
