@@ -135,10 +135,6 @@ services:
         condition: service_healthy
     env_file:
       - ../.env.cloud
-    environment:
-      WORKER_TASK_QUEUES: "lite,llm-cloud,git-ops,ci-cloud,release-web,bitable-sync,feishu-callback"
-      WORKER_MAX_CONCURRENT_ACTIVITIES: "4"
-      WORKER_NODE_NAME: "cloud-tencent"
     volumes:
       - ${AIOP_WORKDIR_BASE:-/tmp/aiop}:/tmp/aiop
       - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop

@@ -43,10 +43,7 @@ QUEUE_REGISTRY: dict[str, dict] = {
 
 
 async def _run_worker(client: Client, queue: str, max_concurrent: int) -> None:
-    spec = QUEUE_REGISTRY.get(queue)
-    if not spec:
-        log.warning("queue %s has no registered workflows/activities, skipping", queue)
-        return
+    spec = QUEUE_REGISTRY[queue]
     worker = Worker(
         client,
         task_queue=queue,
@@ -67,14 +64,23 @@ async def amain() -> None:
         log.error("no task queues configured (WORKER_TASK_QUEUES)")
         sys.exit(2)
 
+    # Filter out queues with no registered workflows/activities
+    valid_queues = [q for q in queues if q in QUEUE_REGISTRY]
+    skipped = [q for q in queues if q not in QUEUE_REGISTRY]
+    if skipped:
+        log.warning("skipping queues with no registered workflows/activities: %s", skipped)
+    if not valid_queues:
+        log.error("no valid task queues after filtering")
+        sys.exit(2)
+
     client = await Client.connect(
         s.temporal_host,
         namespace=s.temporal_namespace,
         data_converter=pydantic_data_converter,
     )
-    log.info("connected to temporal at %s ns=%s, queues=%s", s.temporal_host, s.temporal_namespace, queues)
+    log.info("connected to temporal at %s ns=%s, queues=%s", s.temporal_host, s.temporal_namespace, valid_queues)
 
-    tasks = [asyncio.create_task(_run_worker(client, q, s.worker_max_concurrent_activities)) for q in queues]
+    tasks = [asyncio.create_task(_run_worker(client, q, s.worker_max_concurrent_activities)) for q in valid_queues]
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
