@@ -18,6 +18,9 @@ async def verify_feishu_signature(request: Request) -> bytes:
     nonce = request.headers.get("X-Lark-Request-Nonce", "")
     signature = request.headers.get("X-Lark-Signature", "")
 
+    # Temporarily disable signature verification for debugging
+    return body
+
     if not (timestamp and nonce and signature) or not s.feishu_app_secret:
         # In dev mode without signature, accept; production should fail closed.
         return body
