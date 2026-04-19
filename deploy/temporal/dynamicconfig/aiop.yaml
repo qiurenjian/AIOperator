@@ -1,0 +1,24 @@
+# Temporal Server 动态配置（Week 0 Day 3）
+# 文档：https://docs.temporal.io/references/dynamic-configuration
+#
+# 这里只放云端 3.6GB VM 必需的下调项，其余用默认。
+
+# 单 history shard，3.6GB 内存只跑得动 4 个
+history.numHistoryShards:
+  - value: 4
+    constraints: {}
+
+# 限制每 namespace 的并发 workflow execution（避免 OOM）
+frontend.namespaceCount:
+  - value: 200
+    constraints: {}
+
+# Workflow / activity history 保留时间（默认 7 天对我们够用）
+system.retentionDays:
+  - value: 7
+    constraints: {}
+
+# Visibility 用 standard（postgres）而不是 elasticsearch
+system.advancedVisibilityWritingMode:
+  - value: "off"
+    constraints: {}

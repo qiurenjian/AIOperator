@@ -1,0 +1,157 @@
+# =============================================================================
+# AIOperator Cloud Stack（Week 0 Day 3）
+# =============================================================================
+# 部署目标：腾讯云 VM（3.6GB RAM）
+# 启动命令：
+#   cd deploy/
+#   docker compose --env-file ../.env.cloud up -d
+#
+# 包含：
+#   - postgres            主库（aiop 业务 + temporal 元数据，不同 db）
+#   - temporal            Temporal Server（auto-setup 模式）
+#   - temporal-ui         Temporal Web UI（可选，方便观察 workflow）
+#   - ingress             FastAPI（飞书 callback + Bitable webhook）
+#   - worker-cloud        云端 worker（订阅 lite + llm-cloud + git-ops 等）
+#
+# 不包含（按节点分发）：
+#   - worker-mbp          → 在 MBP 上单独跑（deploy/workers/mbp.compose.yml）
+#   - worker-m5           → 在 M5 上单独跑（deploy/workers/m5.compose.yml）
+#
+# 资源约束（3.6GB RAM 总上限，留 800MB 给系统）：
+#   postgres        ~400MB
+#   temporal        ~600MB（含 history/matching/frontend 单进程）
+#   temporal-ui     ~80MB
+#   ingress         ~250MB
+#   worker-cloud    ~800MB（4 并发 activity）
+#   合计           ~2.13GB，余 ~700MB 给 CLI 子进程突发
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: aiop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro   # 创建 temporal 库 + aiop schema
+    ports:
+      - "127.0.0.1:5432:5432"                            # 仅本机访问
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # ---------------------------------------------------------------------------
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    container_name: aiop-temporal
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${TEMPORAL_DB_USER}
+      POSTGRES_PWD: ${TEMPORAL_DB_PASSWORD}
+      POSTGRES_SEEDS: postgres
+      DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE}
+      DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/aiop.yaml
+    volumes:
+      - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
+    ports:
+      - "127.0.0.1:7233:7233"
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "localhost:7233", "cluster", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  # ---------------------------------------------------------------------------
+  temporal-ui:
+    image: temporalio/ui:2.27.2
+    container_name: aiop-temporal-ui
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:8088
+    ports:
+      - "127.0.0.1:${TEMPORAL_UI_PORT:-8088}:8080"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # ---------------------------------------------------------------------------
+  ingress:
+    build:
+      context: ..
+      dockerfile: apps/ingress/Dockerfile         # Day 3 后续创建
+    container_name: aiop-ingress
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    env_file:
+      - ../.env.cloud
+    ports:
+      - "${INGRESS_PORT:-8000}:8000"
+    volumes:
+      - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop
+    deploy:
+      resources:
+        limits:
+          memory: 320M
+
+  # ---------------------------------------------------------------------------
+  worker-cloud:
+    build:
+      context: ..
+      dockerfile: apps/worker_runtime/Dockerfile  # Day 3 后续创建
+    container_name: aiop-worker-cloud
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - ../.env.cloud
+    environment:
+      WORKER_TASK_QUEUES: "lite,llm-cloud,git-ops,ci-cloud,release-web,bitable-sync,feishu-callback"
+      WORKER_MAX_CONCURRENT_ACTIVITIES: "4"
+      WORKER_NODE_NAME: "cloud-tencent"
+    volumes:
+      - ${AIOP_WORKDIR_BASE:-/tmp/aiop}:/tmp/aiop
+      - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop
+      # CLI 鉴权状态（Claude Code / Codex 的 oauth token 可能存这里）
+      - cli_auth_cloud:/root/.config
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+
+# =============================================================================
+
+volumes:
+  postgres_data:
+    driver: local
+  cli_auth_cloud:
+    driver: local

@@ -1,0 +1,39 @@
+# =============================================================================
+# MBP Worker（Week 3 接入后用）
+# =============================================================================
+# 部署目标：2014 MBP 8GB（家中常驻）
+# 启动命令：
+#   cd deploy/workers/
+#   docker compose -f mbp.compose.yml --env-file ../../.env.mbp up -d
+#
+# 与云端 docker-compose.yml 的关系：
+#   - 不跑 postgres / temporal / ingress（这些只在 cloud 上）
+#   - 仅跑 worker，连云端 Temporal Server
+#   - 8GB RAM 全留给 LLM CLI 子进程，所以并发开 8
+# =============================================================================
+
+services:
+  worker-mbp:
+    build:
+      context: ../..
+      dockerfile: apps/worker_runtime/Dockerfile
+    container_name: aiop-worker-mbp
+    restart: unless-stopped
+    env_file:
+      - ../../.env.mbp
+    environment:
+      WORKER_TASK_QUEUES: "llm-heavy,git-mac,ci-local"
+      WORKER_MAX_CONCURRENT_ACTIVITIES: "8"
+      WORKER_NODE_NAME: "mbp-home"
+    volumes:
+      - ${AIOP_WORKDIR_BASE:-/tmp/aiop}:/tmp/aiop
+      - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop
+      - cli_auth_mbp:/root/.config
+    deploy:
+      resources:
+        limits:
+          memory: 6144M             # 留 2GB 给宿主系统
+
+volumes:
+  cli_auth_mbp:
+    driver: local

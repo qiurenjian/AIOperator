@@ -1,0 +1,41 @@
+# =============================================================================
+# M5 Worker（Week 5+ 接入后用）
+# =============================================================================
+# 部署目标：M5 MBA 32GB（用户笔记本，移动场景）
+# 启动命令：
+#   cd deploy/workers/
+#   docker compose -f m5.compose.yml --env-file ../../.env.m5 up -d
+#
+# 注意：
+#   - M5 离线时此 worker 进程也下线，订阅的 task queue 会回 retry
+#   - 与 Hermes/Obsidian 同机异轨——本 worker 不读写 Obsidian 库
+#   - release-ios 需要 Xcode 已安装并 sign in（fastlane / xcrun）
+# =============================================================================
+
+services:
+  worker-m5:
+    build:
+      context: ../..
+      dockerfile: apps/worker_runtime/Dockerfile
+    container_name: aiop-worker-m5
+    restart: unless-stopped
+    env_file:
+      - ../../.env.m5
+    environment:
+      WORKER_TASK_QUEUES: "release-ios,xcode,llm-fast"
+      WORKER_MAX_CONCURRENT_ACTIVITIES: "2"
+      WORKER_NODE_NAME: "m5-mobile"
+    volumes:
+      - ${AIOP_WORKDIR_BASE:-/tmp/aiop}:/tmp/aiop
+      - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop
+      - cli_auth_m5:/root/.config
+      # iOS 构建需要访问宿主 Xcode（macOS 容器化局限：考虑 host 直跑而非 docker）
+      # - /Applications/Xcode.app:/Applications/Xcode.app:ro
+    deploy:
+      resources:
+        limits:
+          memory: 8192M             # 32GB 总量，留大头给 Xcode + Hermes
+
+volumes:
+  cli_auth_m5:
+    driver: local
