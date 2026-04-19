@@ -33,8 +33,6 @@ services:
     image: postgres:16-alpine
     container_name: aiop-postgres
     restart: unless-stopped
-    env_file:
-      - ../.env.cloud
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -62,8 +60,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    env_file:
-      - ../.env.cloud
     environment:
       DB: postgres12
       DB_PORT: 5432
