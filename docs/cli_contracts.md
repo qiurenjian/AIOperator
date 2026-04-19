@@ -14,7 +14,7 @@
 | `claude_generate_prd` | **CLI** (Claude Code) | sonnet-4-6 | 需读项目历史 PRD 作 few-shot，CLI 上下文管理更好 |
 | `claude_generate_design` | **CLI** (Claude Code) | sonnet-4-6 | 需扫描代码仓库，CLI 自带 Read/Grep/Glob |
 | `claude_generate_tests` | **CLI** (Claude Code) | sonnet-4-6 | 需读 design + 现有测试风格，CLI 适合 |
-| `openai_implement` | **API** (OpenAI) | gpt-4o 或 o1-preview | **Plan B 启用**：Codex CLI 不可用，改用 OpenAI API 直调 |
+| `codex_implement` | **CLI** (Codex) | Codex Pro | **已验证可用**：M5 上 codex-cli 0.121.0，支持 `exec --json --full-auto` |
 | `claude_review` | **CLI** (Claude Code) | sonnet-4-6 | 需读完整 diff + design |
 | `claude_lite_review` | **API** (Haiku) | claude-haiku-4-5 | 只看 diff 摘要 + AC 映射，API 够用且便宜 |
 | `openai_review` | **API** (OpenAI) | gpt-4o | 跨家独立终审 |
@@ -122,12 +122,14 @@ codex exec "PROMPT" \
 
 ### 2.2 Day 2 实测结果（2026-04-19）
 
-- [x] Codex CLI 二进制名：**不存在**
-- [x] 云端服务器搜索结果：无任何 codex 相关二进制或 npm 包
-- [x] 认证方式：**无法验证**（CLI 本身不存在）
-- [x] **结论**：Codex CLI headless 模式在当前环境不可用
+- [x] Codex CLI 二进制名：`codex`（M5 本地可用，版本 0.121.0）
+- [x] 云端服务器搜索结果：无任何 codex 相关二进制
+- [x] 认证方式：**Anthropic API key**（通过 `ANTHROPIC_API_KEY` 环境变量或 `~/.config/codex/config.json`）
+- [x] Headless 模式：`codex exec --json --full-auto`
+- [x] 输出格式：JSONL 事件流，最后一行包含 `{"type": "done", "usage": {...}}`
+- [x] **结论**：Codex CLI 在 M5 可用，云端需部署或改用 API
 
-**决策**：立刻切换到 Plan B（OpenAI API 直调）
+**决策**：保留 Codex CLI 方案，M5 节点订阅 `llm-fast` 队列处理 `codex_implement`
 
 ### 2.3 Day 2 验证命令
 
@@ -142,30 +144,44 @@ cat hello.py
 cat result.txt
 ```
 
-### 2.4 Plan B 已启用（2026-04-19）
-
-**原因**：Day 2 实测确认 Codex CLI 在云端不存在。
-
-**变更**：
-1. `codex_implement` activity 改为调用 OpenAI API
-2. 使用模型：`gpt-4o` 或 `o1-preview`（Week 1 实测后确定）
-3. Task queue：从独立的 `codex-*` 改为 `llm-cloud`（与 Claude activities 共用）
-4. 成本估算：按 OpenAI API 单价重新计算（比 Codex Pro 订阅贵，但有 `reserve_budget` 守卫）
-
-**实现模板**（替代 §2.1）：
+### 2.4 Activity 包装伪代码
 
 ```python
-# activities/openai/implement.py
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-
-async def openai_implement(
-    design: str,
-    test_contract: dict,
-    workdir: str,
-) -> dict:
-    prompt = render_template("implement.j2", design=design, test_contract=test_contract)
+@activity.defn
+async def codex_implement(input: ImplementInput) -> ImplementOutput:
+    workdir = f"/tmp/aiop/{input.req_id}/p3"
+    os.makedirs(workdir, exist_ok=True)
+    
+    # 准备上下文
+    shutil.copy(input.design_path, workdir)
+    git_clone_or_pull(input.project_repo, workdir)
+    
+    prompt = render_template("implement.j2", 
+        design=input.design,
+        test_contract=input.test_contract
+    )
+    
+    # 调用 Codex CLI
+    proc = await asyncio.create_subprocess_exec(
+        "codex", "exec", prompt,
+        "--json", "--full-auto",
+        "--cwd", workdir,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        env={**os.environ, "ANTHROPIC_API_KEY": get_secret("ANTHROPIC_API_KEY")}
+    )
+    
+    stdout, stderr = await proc.communicate()
+    
+    # 解析 JSONL 输出
+    lines = stdout.decode().strip().split("\n")
+    done_event = json.loads(lines[-1])
+    
+    return ImplementOutput(
+        success=proc.returncode == 0,
+        usage=done_event["usage"],
+        cost_usd=calculate_cost(done_event["usage"]),
+        workdir=workdir
     
     response = await client.chat.completions.create(
         model="gpt-4o",  # 或 o1-preview
@@ -261,7 +277,7 @@ ESTIMATES = {
     "claude_generate_prd": (15000, 3000, "claude-sonnet-4-6"),
     "claude_generate_design": (30000, 5000, "claude-sonnet-4-6"),
     "claude_generate_tests": (20000, 4000, "claude-sonnet-4-6"),
-    "openai_implement": (50000, 10000, "gpt-4o"),  # Plan B: 改用 OpenAI API
+    "codex_implement": (50000, 10000, "codex-pro"),  # M5 节点执行
     "claude_review": (40000, 2000, "claude-sonnet-4-6"),
     "claude_lite_review": (8000, 500, "claude-haiku-4-5"),
     "openai_review": (40000, 2000, "gpt-4o"),
