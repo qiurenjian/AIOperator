@@ -68,6 +68,7 @@ services:
       POSTGRES_SEEDS: postgres
       DEFAULT_NAMESPACE: ${TEMPORAL_NAMESPACE}
       DYNAMIC_CONFIG_FILE_PATH: /etc/temporal/config/dynamicconfig/aiop.yaml
+      SKIP_DB_CREATE: "true"
     volumes:
       - ./temporal/dynamicconfig:/etc/temporal/config/dynamicconfig:ro
     ports:
