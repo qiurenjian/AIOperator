@@ -4,7 +4,7 @@ import logging
 
 from anthropic import Anthropic
 
-from aiop.settings import settings
+from aiop.settings import get_settings
 from apps.ingress.session_manager import Message, Session
 
 log = logging.getLogger(__name__)
@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 async def handle_chat(message: str, session: Session) -> str:
     """Handle chat intent using Claude for direct conversation."""
+    settings = get_settings()
     client = Anthropic(api_key=settings.anthropic_api_key)
 
     # Build conversation history

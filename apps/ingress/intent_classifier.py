@@ -6,7 +6,7 @@ from enum import Enum
 
 from anthropic import Anthropic
 
-from aiop.settings import settings
+from aiop.settings import get_settings
 from apps.ingress.session_manager import Message
 
 log = logging.getLogger(__name__)
@@ -36,6 +36,7 @@ def format_context(messages: list[Message]) -> str:
 
 
 async def classify_intent(message: str, context: list[Message]) -> Intent:
+    settings = get_settings()
     client = Anthropic(api_key=settings.anthropic_api_key)
 
     context_str = format_context(context[-3:])
