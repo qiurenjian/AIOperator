@@ -56,11 +56,12 @@ async def feishu_callback(request: Request, body: bytes = Depends(verify_feishu_
     if payload.get("type") == "url_verification":
         return {"challenge": payload.get("challenge")}
 
-    # 2. 卡片交互回调
-    if payload.get("type") == "card.action.trigger":
-        return await _handle_card_action(payload)
+    # 2. 卡片交互回调 (schema 2.0)
+    event_type = payload.get("header", {}).get("event_type") or payload.get("type")
+    if event_type == "card.action.trigger":
+        return await _handle_card_action(payload.get("event", payload))
 
-    log.warning("unhandled callback type: %s", payload.get("type"))
+    log.warning("unhandled callback type: %s", event_type)
     return {"status": "ignored"}
 
 
