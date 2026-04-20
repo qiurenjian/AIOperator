@@ -137,7 +137,14 @@ async def _handle_card_action(event: dict[str, Any]) -> dict:
     await handle.signal(signal, operator.get("open_id", ""))
     log.info("sent signal %s to req-%s", signal, req_id)
 
-    return {"toast": {"type": "success", "content": f"已记录: {action_name}"}}
+    action_text = {
+        "p0_confirm": "✅ 已确认需求，开始生成 PRD",
+        "p0_revise": "✏️ 已请求改写需求",
+        "p1_approve": "✅ 已批准 PRD，准备提交代码",
+        "p1_reject": "❌ 已拒绝 PRD",
+    }.get(action_name, "操作成功")
+
+    return {"toast": {"type": "success", "content": action_text}}
 
 
 _AT_RE = re.compile(r"@_user_\d+")
