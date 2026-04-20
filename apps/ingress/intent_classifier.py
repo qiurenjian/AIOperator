@@ -65,9 +65,16 @@ async def classify_intent(message: str, context: list[Message]) -> Intent:
             model="claude-3-5-haiku-20241022",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
+            temperature=0,
         )
 
         text = response.content[0].text.strip()
+        # 提取 JSON（可能包含 markdown 代码块）
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+            text = text.strip()
         result = json.loads(text)
 
         intent = Intent(
