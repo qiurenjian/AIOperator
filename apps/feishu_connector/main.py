@@ -219,7 +219,10 @@ async def main():
         .build()
 
     # 创建事件处理器
-    handler = lark.EventDispatcherHandler.builder() \
+    handler = lark.EventDispatcherHandler.builder(
+        encrypt_key=settings.feishu_encrypt_key or "",
+        verification_token=settings.feishu_verification_token,
+    ) \
         .register_p2_im_message_receive_v1(do_p2_im_message_receive_v1) \
         .register_p2_card_action_trigger(do_p2_card_action_trigger) \
         .build()
