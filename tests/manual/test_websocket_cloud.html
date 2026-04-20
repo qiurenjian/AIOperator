@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test Client (Cloud)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .sent {
+            background-color: #e3f2fd;
+        }
+        .received {
+            background-color: #f1f8e9;
+        }
+        .error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #c8e6c9;
+            color: #2e7d32;
+        }
+        .disconnected {
+            background-color: #ffcdd2;
+            color: #c62828;
+        }
+    </style>
+</head>
+<body>
+    <h1>AIOperator WebSocket Test Client (Cloud)</h1>
+
+    <div class="container">
+        <h2>Connection</h2>
+        <label>WebSocket URL:</label>
+        <input type="text" id="wsUrl" value="wss://telling-alfred-generate-diana.trycloudflare.com/ws/test_user_123" />
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+        <div id="status" class="status disconnected">Disconnected</div>
+    </div>
+
+    <div class="container">
+        <h2>Send Message</h2>
+        <label>Message:</label>
+        <textarea id="messageInput" rows="3" placeholder="Enter your message here...">帮我实现一个登录功能</textarea>
+        <button id="sendBtn" onclick="sendMessage()" disabled>Send Message</button>
+    </div>
+
+    <div class="container">
+        <h2>Quick Test Messages</h2>
+        <button onclick="sendQuickMessage('JWT 和 Session 有什么区别？')">Chat: 技术问题</button>
+        <button onclick="sendQuickMessage('帮我实现一个登录功能')">Requirement: 提交需求</button>
+        <button onclick="sendQuickMessage('我想做一个用户管理模块')">Requirement: 讨论需求</button>
+    </div>
+
+    <div class="container">
+        <h2>Messages</h2>
+        <div id="messages"></div>
+        <button onclick="clearMessages()">Clear Messages</button>
+    </div>
+
+    <script>
+        let ws = null;
+
+        function connect() {
+            const url = document.getElementById('wsUrl').value;
+            addMessage('Connecting to ' + url + '...', 'sent');
+
+            ws = new WebSocket(url);
+
+            ws.onopen = function(event) {
+                addMessage('✅ Connected!', 'received');
+                document.getElementById('status').textContent = 'Connected';
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+            };
+
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage('📨 Received: ' + JSON.stringify(data, null, 2), 'received');
+                } catch (e) {
+                    addMessage('📨 Received: ' + event.data, 'received');
+                }
+            };
+
+            ws.onerror = function(error) {
+                addMessage('❌ Error: ' + error, 'error');
+            };
+
+            ws.onclose = function(event) {
+                addMessage('🔌 Connection closed', 'error');
+                document.getElementById('status').textContent = 'Disconnected';
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function sendMessage() {
+            const message = document.getElementById('messageInput').value;
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const payload = {
+                    message: message
+                };
+                ws.send(JSON.stringify(payload));
+                addMessage('📤 Sent: ' + message, 'sent');
+            } else {
+                addMessage('❌ Not connected', 'error');
+            }
+        }
+
+        function sendQuickMessage(text) {
+            document.getElementById('messageInput').value = text;
+            sendMessage();
+        }
+
+        function addMessage(text, className) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + className;
+            messageDiv.textContent = new Date().toLocaleTimeString() + ' - ' + text;
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function clearMessages() {
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        // Allow Enter key to send message
+        document.getElementById('messageInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>

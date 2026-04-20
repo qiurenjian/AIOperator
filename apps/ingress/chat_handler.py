@@ -36,7 +36,7 @@ async def handle_chat(message: str, session: Session) -> str:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-6-20250402",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=2000,
             system=system_prompt,
             messages=messages,
