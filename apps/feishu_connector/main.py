@@ -29,19 +29,19 @@ log = logging.getLogger(__name__)
 session_manager = SessionManager()
 
 
-async def handle_message_event(event_dict: dict):
+async def handle_message_event(event):
     """处理接收消息事件"""
     try:
-        # 解析消息内容
-        message = event_dict.get("message", {})
-        sender = event_dict.get("sender", {})
+        # 解析消息内容（event 是 lark SDK 对象，不是字典）
+        message = event.message
+        sender = event.sender
 
-        chat_id = message.get("chat_id")
-        message_id = message.get("message_id")
-        content = json.loads(message.get("content", "{}"))
+        chat_id = message.chat_id
+        message_id = message.message_id
+        content = json.loads(message.content)
         text = content.get("text", "").strip()
 
-        sender_id = sender.get("sender_id", {}).get("user_id", "unknown")
+        sender_id = sender.sender_id.open_id or "unknown"
 
         log.info(
             "received message from %s in chat %s: %s",
@@ -112,11 +112,12 @@ async def handle_message_event(event_dict: dict):
         log.error("failed to handle message event: %s", e, exc_info=True)
 
 
-async def handle_card_callback(event_dict: dict):
+async def handle_card_callback(event):
     """处理消息卡片回调"""
     try:
-        action = event_dict.get("action", {})
-        value = action.get("value", {})
+        # event 是 lark SDK 对象
+        action = event.action
+        value = json.loads(action.value) if isinstance(action.value, str) else action.value
 
         log.info("received card callback: %s", value)
 
@@ -193,15 +194,13 @@ async def send_feishu_message(chat_id: str, text: str):
 def do_p2_im_message_receive_v1(data: lark.P2ImMessageReceiveV1) -> None:
     """处理接收消息事件"""
     log.info("received im.message.receive_v1 event")
-    event_dict = data.event.__dict__ if hasattr(data.event, '__dict__') else {}
-    asyncio.create_task(handle_message_event(event_dict))
+    asyncio.create_task(handle_message_event(data.event))
 
 
 def do_p2_card_action_trigger(data: lark.P2CardActionTrigger) -> None:
     """处理卡片回调事件"""
     log.info("received card.action.trigger event")
-    event_dict = data.event.__dict__ if hasattr(data.event, '__dict__') else {}
-    asyncio.create_task(handle_card_callback(event_dict))
+    asyncio.create_task(handle_card_callback(data.event))
 
 
 def main():
