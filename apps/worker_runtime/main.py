@@ -15,6 +15,7 @@ from activities.claude.capture_requirement import claude_capture_requirement
 from activities.claude.generate_prd import claude_generate_prd
 from activities.feishu.send_card import feishu_send_card
 from activities.git.commit import git_commit
+from activities.websocket.notify import notify_websocket
 from aiop.settings import get_settings
 from workflows.requirement import RequirementWorkflow
 
@@ -25,7 +26,7 @@ log = logging.getLogger("worker")
 QUEUE_REGISTRY: dict[str, dict] = {
     "lite": {
         "workflows": [RequirementWorkflow],
-        "activities": [feishu_send_card],
+        "activities": [feishu_send_card, notify_websocket],
     },
     "llm-cloud": {
         "workflows": [],

@@ -12,6 +12,7 @@ with workflow.unsafe.imports_passed_through():
     from activities.feishu.cards import captured_card, commit_card, prd_card
     from activities.feishu.send_card import SendCardInput, feishu_send_card
     from activities.git.commit import GitCommitInput, git_commit
+    from activities.websocket.notify import notify_websocket
     from aiop.types import (
         CapturedRequirement,
         GitCommitResult,
@@ -67,6 +68,15 @@ class RequirementWorkflow:
         # ---------- P0: 捕获需求 ----------
         self.current_phase = "P0"
         self.lifecycle_state = "in_progress"
+
+        if req.chat_id:
+            await workflow.execute_activity(
+                notify_websocket,
+                args=[req.chat_id, {"type": "progress", "phase": "P0", "message": "正在分析需求..."}],
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
+            )
+
         self.captured = await workflow.execute_activity(
             claude_capture_requirement,
             req,
@@ -93,6 +103,12 @@ class RequirementWorkflow:
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=retry,
             )
+            await workflow.execute_activity(
+                notify_websocket,
+                args=[req.chat_id, {"type": "progress", "phase": "P0", "message": "✅ 需求已捕获，等待确认"}],
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
+            )
 
         await workflow.wait_condition(lambda: self._p0_confirmed or self._p0_revise_requested, timeout=timedelta(hours=24))
 
@@ -102,6 +118,15 @@ class RequirementWorkflow:
 
         # ---------- P1: 生成 PRD ----------
         self.current_phase = "P1"
+
+        if req.chat_id:
+            await workflow.execute_activity(
+                notify_websocket,
+                args=[req.chat_id, {"type": "progress", "phase": "P1", "message": "正在生成 PRD..."}],
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
+            )
+
         self.prd = await workflow.execute_activity(
             claude_generate_prd,
             self.captured,

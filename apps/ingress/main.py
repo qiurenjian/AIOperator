@@ -6,12 +6,16 @@ import re
 from datetime import datetime
 from typing import Any
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from aiop.settings import get_settings
 from aiop.types import RequirementInput
+from apps.ingress.chat_handler import handle_chat
 from apps.ingress.feishu_signature import verify_feishu_signature
+from apps.ingress.intent_classifier import IntentType, classify_intent
+from apps.ingress.session_manager import SessionManager
 from apps.ingress.temporal_client import get_temporal_client
+from apps.ingress.websocket_notifier import WebSocketNotifier
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("ingress")
@@ -22,6 +26,107 @@ app = FastAPI(title="AIOperator Ingress")
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok", "ts": datetime.utcnow().isoformat()}
+
+
+@app.websocket("/ws/{chat_id}")
+async def websocket_endpoint(websocket: WebSocket, chat_id: str):
+    """WebSocket endpoint for real-time chat with intent classification."""
+    await websocket.accept()
+    log.info("websocket connected: chat_id=%s", chat_id)
+
+    user_id = "unknown"
+    session = SessionManager.get_or_create(chat_id, user_id)
+    WebSocketNotifier.register(chat_id, websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_json()
+            message = data.get("message", "").strip()
+            if not message:
+                continue
+
+            log.info("received message from %s: %s", chat_id, message[:100])
+
+            # 1. Classify intent
+            intent = await classify_intent(message, session.get_recent_context())
+
+            # 2. Route based on intent
+            if intent.type == IntentType.CHAT:
+                response = await handle_chat(message, session)
+                session.add_message("user", message)
+                session.add_message("assistant", response)
+                await websocket.send_json({"type": "message", "content": response})
+
+            elif intent.type == IntentType.REQUIREMENT:
+                session.add_message("user", message)
+                req_id = await _start_requirement_workflow(message, session)
+                response = f"✅ 需求已提交（{req_id}），正在生成 PRD..."
+                session.add_message("assistant", response)
+                await websocket.send_json(
+                    {
+                        "type": "workflow_started",
+                        "req_id": req_id,
+                        "message": response,
+                    }
+                )
+
+            elif intent.type == IntentType.APPROVAL:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "审批功能暂未实现，请使用卡片按钮",
+                    }
+                )
+
+            elif intent.type == IntentType.QUERY:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "查询功能暂未实现",
+                    }
+                )
+
+    except WebSocketDisconnect:
+        log.info("websocket disconnected: chat_id=%s", chat_id)
+        WebSocketNotifier.unregister(chat_id)
+        SessionManager.remove(chat_id)
+    except Exception as e:
+        log.error("websocket error: %s", e)
+        WebSocketNotifier.unregister(chat_id)
+        try:
+            await websocket.send_json({"type": "error", "message": str(e)})
+        except:
+            pass
+
+
+async def _start_requirement_workflow(message: str, session) -> str:
+    """Start RequirementWorkflow from WebSocket message."""
+    s = get_settings()
+    req_id = _gen_req_id()
+    title = message[:30]
+    project = "healthassit"
+
+    req = RequirementInput(
+        req_id=req_id,
+        title=title,
+        raw_text=message,
+        project=project,
+        created_by=session.user_id,
+        chat_id=session.chat_id,
+        repo_url=_project_repo(project),
+        branch=_project_branch(project),
+    )
+
+    client = await get_temporal_client()
+    handle = await client.start_workflow(
+        "RequirementWorkflow",
+        req,
+        id=f"req-{req_id}",
+        task_queue="lite",
+    )
+    session.active_workflow_id = handle.id
+    log.info("started workflow %s for req %s", handle.id, req_id)
+    return req_id
 
 
 @app.post("/feishu/webhook")
