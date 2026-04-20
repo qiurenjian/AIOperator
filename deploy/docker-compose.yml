@@ -145,6 +145,25 @@ services:
         limits:
           memory: 1024M
 
+  # ---------------------------------------------------------------------------
+  feishu-connector:
+    build:
+      context: ..
+      dockerfile: apps/feishu_connector/Dockerfile
+    container_name: aiop-feishu-connector
+    restart: unless-stopped
+    depends_on:
+      temporal:
+        condition: service_healthy
+    env_file:
+      - ../.env.cloud
+    volumes:
+      - ${AIOP_LOG_DIR:-/var/log/aiop}:/var/log/aiop
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
 # =============================================================================
 
 volumes:
