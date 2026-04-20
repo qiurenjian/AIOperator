@@ -37,7 +37,10 @@ def format_context(messages: list[Message]) -> str:
 
 async def classify_intent(message: str, context: list[Message]) -> Intent:
     settings = get_settings()
-    client = Anthropic(api_key=settings.anthropic_api_key)
+    client = Anthropic(
+        api_key=settings.anthropic_api_key,
+        base_url=settings.anthropic_base_url,
+    )
 
     context_str = format_context(context[-3:])
 
