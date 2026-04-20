@@ -204,19 +204,12 @@ def do_p2_card_action_trigger(data: lark.P2CardActionTrigger) -> None:
     asyncio.create_task(handle_card_callback(event_dict))
 
 
-async def main():
+def main():
     """启动飞书长连接客户端"""
     settings = get_settings()
 
     log.info("starting feishu connector...")
     log.info("app_id: %s", settings.feishu_app_id)
-
-    # 创建飞书客户端
-    client = lark.Client.builder() \
-        .app_id(settings.feishu_app_id) \
-        .app_secret(settings.feishu_app_secret) \
-        .log_level(lark.LogLevel.DEBUG) \
-        .build()
 
     # 创建事件处理器
     handler = lark.EventDispatcherHandler.builder(
@@ -227,19 +220,20 @@ async def main():
         .register_p2_card_action_trigger(do_p2_card_action_trigger) \
         .build()
 
-    # 启动长连接
-    client.ws.start(handler)
+    # 创建 WebSocket 客户端并启动长连接
+    ws_client = lark.ws.Client(
+        app_id=settings.feishu_app_id,
+        app_secret=settings.feishu_app_secret,
+        event_handler=handler,
+        log_level=lark.LogLevel.DEBUG,
+    )
 
     log.info("feishu connector started, waiting for events...")
 
-    # 保持运行
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        log.info("shutting down...")
+    # 启动长连接（阻塞调用）
+    ws_client.start()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
 
