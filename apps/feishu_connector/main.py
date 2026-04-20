@@ -54,7 +54,7 @@ async def handle_message_event(event):
             return
 
         # 获取或创建会话
-        session = session_manager.get_or_create_session(chat_id)
+        session = session_manager.get_or_create(chat_id, sender_id)
         session.add_message("user", text)
 
         # 意图分类
