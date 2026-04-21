@@ -77,12 +77,13 @@ async def handle_message_event(event):
             settings = get_settings()
             client = await get_temporal_client()
 
+            req_id = f"req-{message_id}"
             workflow_input = RequirementInput(
+                req_id=req_id,
+                title=text[:100],  # 使用前100字符作为标题
                 raw_text=text,
-                source="feishu",
-                user_id=sender_id,
+                created_by=sender_id,
                 chat_id=chat_id,
-                message_id=message_id,
                 repo_url=settings.healthassit_repo,
                 branch=settings.healthassit_default_branch,
             )
