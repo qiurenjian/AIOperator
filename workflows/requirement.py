@@ -93,6 +93,7 @@ class RequirementWorkflow:
                     chat_id=req.chat_id,
                     card=captured_card(
                         req_id=req.req_id,
+                        workflow_id=workflow.info().workflow_id,
                         summary=self.captured.summary,
                         user_story=self.captured.user_story,
                         hints=self.captured.acceptance_hints,
@@ -144,6 +145,7 @@ class RequirementWorkflow:
                     chat_id=req.chat_id,
                     card=prd_card(
                         req_id=req.req_id,
+                        workflow_id=workflow.info().workflow_id,
                         summary=self.captured.summary,
                         ac_count=self.prd.ac_count,
                     ),

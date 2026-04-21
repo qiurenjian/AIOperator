@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 
-def captured_card(*, req_id: str, summary: str, user_story: str, hints: list[str], risk: str) -> dict[str, Any]:
+def captured_card(*, req_id: str, workflow_id: str, summary: str, user_story: str, hints: list[str], risk: str) -> dict[str, Any]:
     hint_text = "\n".join(f"- {h}" for h in hints)
     return {
         "config": {"wide_screen_mode": True},
@@ -24,13 +24,13 @@ def captured_card(*, req_id: str, summary: str, user_story: str, hints: list[str
                         "tag": "button",
                         "text": {"tag": "plain_text", "content": "进入 P1（生成 PRD）"},
                         "type": "primary",
-                        "value": {"action": "p0_confirm", "req_id": req_id},
+                        "value": {"action": "p0_confirm", "req_id": req_id, "workflow_id": workflow_id},
                     },
                     {
                         "tag": "button",
                         "text": {"tag": "plain_text", "content": "改写需求"},
                         "type": "default",
-                        "value": {"action": "p0_revise", "req_id": req_id},
+                        "value": {"action": "p0_revise", "req_id": req_id, "workflow_id": workflow_id},
                     },
                 ],
             },
@@ -38,7 +38,7 @@ def captured_card(*, req_id: str, summary: str, user_story: str, hints: list[str
     }
 
 
-def prd_card(*, req_id: str, summary: str, ac_count: int, prd_url: str | None = None) -> dict[str, Any]:
+def prd_card(*, req_id: str, workflow_id: str, summary: str, ac_count: int, prd_url: str | None = None) -> dict[str, Any]:
     elements: list[dict[str, Any]] = [
         {"tag": "div", "text": {"tag": "lark_md", "content": f"**摘要**：{summary}"}},
         {"tag": "div", "text": {"tag": "lark_md", "content": f"**验收条件**：{ac_count} 条"}},
@@ -54,13 +54,13 @@ def prd_card(*, req_id: str, summary: str, ac_count: int, prd_url: str | None = 
                     "tag": "button",
                     "text": {"tag": "plain_text", "content": "✅ 批准并入库（git commit）"},
                     "type": "primary",
-                    "value": {"action": "p1_approve", "req_id": req_id},
+                    "value": {"action": "p1_approve", "req_id": req_id, "workflow_id": workflow_id},
                 },
                 {
                     "tag": "button",
                     "text": {"tag": "plain_text", "content": "❌ 拒绝"},
                     "type": "danger",
-                    "value": {"action": "p1_reject", "req_id": req_id},
+                    "value": {"action": "p1_reject", "req_id": req_id, "workflow_id": workflow_id},
                 },
             ],
         },
