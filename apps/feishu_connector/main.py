@@ -134,9 +134,9 @@ async def handle_card_callback(event):
         client = await get_temporal_client()
         handle = client.get_workflow_handle(workflow_id)
 
-        if action_type == "p0_approve":
-            await handle.signal("p0_approve")
-            log.info("sent signal p0_approve to workflow %s", workflow_id)
+        if action_type == "p0_confirm":
+            await handle.signal("p0_confirm")
+            log.info("sent signal p0_confirm to workflow %s", workflow_id)
 
         elif action_type == "p0_revise":
             await handle.signal("p0_revise")
