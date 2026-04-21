@@ -15,9 +15,7 @@ from temporalio import activity
 from lark_oapi import Client
 from lark_oapi.api.bitable.v1 import (
     CreateAppTableRecordRequest,
-    CreateAppTableRecordRequestBody,
     UpdateAppTableRecordRequest,
-    UpdateAppTableRecordRequestBody,
     ListAppTableRecordRequest,
 )
 
@@ -148,12 +146,9 @@ async def bitable_sync_requirement(req_data: dict) -> dict:
                 .app_token(settings.feishu_bitable_app_token) \
                 .table_id(settings.feishu_bitable_kanban_table_id) \
                 .record_id(existing["record_id"]) \
-                .request_body(
-                    UpdateAppTableRecordRequestBody.builder()
-                    .fields(fields)
-                    .build()
-                ) \
                 .build()
+
+            request.body = {"fields": fields}
 
             response = client.bitable.v1.app_table_record.update(request)
 
@@ -175,12 +170,9 @@ async def bitable_sync_requirement(req_data: dict) -> dict:
             request = CreateAppTableRecordRequest.builder() \
                 .app_token(settings.feishu_bitable_app_token) \
                 .table_id(settings.feishu_bitable_kanban_table_id) \
-                .request_body(
-                    CreateAppTableRecordRequestBody.builder()
-                    .fields(fields)
-                    .build()
-                ) \
                 .build()
+
+            request.body = {"fields": fields}
 
             response = client.bitable.v1.app_table_record.create(request)
 

@@ -4,6 +4,8 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
+from apps.ingress.conversation_state import ConversationContext
+
 log = logging.getLogger(__name__)
 
 
@@ -19,6 +21,7 @@ class Session:
     chat_id: str
     user_id: str
     context: list[Message] = field(default_factory=list)
+    conversation: ConversationContext = field(default_factory=ConversationContext)
     active_workflow_id: str | None = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
@@ -67,3 +70,7 @@ class SessionManager:
             cls.remove(cid)
         if stale:
             log.info("cleaned up %d stale sessions", len(stale))
+
+
+# 全局会话管理器实例
+session_manager = SessionManager()
