@@ -11,6 +11,7 @@ from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 
+from activities.bitable.sync import bitable_sync_requirement
 from activities.claude.capture_requirement import claude_capture_requirement
 from activities.claude.generate_prd import claude_generate_prd
 from activities.feishu.send_card import feishu_send_card
@@ -35,6 +36,10 @@ QUEUE_REGISTRY: dict[str, dict] = {
     "git-ops": {
         "workflows": [],
         "activities": [git_commit],
+    },
+    "bitable-sync": {
+        "workflows": [],
+        "activities": [bitable_sync_requirement],
     },
     "feishu-callback": {
         "workflows": [],

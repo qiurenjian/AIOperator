@@ -7,6 +7,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 with workflow.unsafe.imports_passed_through():
+    from activities.bitable.sync import bitable_sync_requirement
     from activities.claude.capture_requirement import claude_capture_requirement
     from activities.claude.generate_prd import claude_generate_prd
     from activities.feishu.cards import captured_card, commit_card, prd_card
@@ -86,6 +87,26 @@ class RequirementWorkflow:
         )
         self.cost_used_usd += self.captured.cost_usd
 
+        # 同步到飞书表格
+        await workflow.execute_activity(
+            bitable_sync_requirement,
+            {
+                "req_id": req.req_id,
+                "title": self.captured.summary,
+                "project": "HealthAssit",
+                "created_by": req.created_by or "unknown",
+                "lifecycle_state": "captured",
+                "current_phase": "P0",
+                "cost_used_usd": self.cost_used_usd,
+                "risk_level": self.captured.suggested_risk,
+                "created_at": workflow.now().isoformat(),
+                "updated_at": workflow.now().isoformat(),
+            },
+            task_queue="bitable-sync",
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(maximum_attempts=2, initial_interval=timedelta(seconds=2)),
+        )
+
         if req.chat_id:
             await workflow.execute_activity(
                 feishu_send_card,
@@ -138,6 +159,21 @@ class RequirementWorkflow:
         )
         self.cost_used_usd += self.prd.cost_usd
 
+        # 同步到飞书表格（更新 PRD 阶段）
+        await workflow.execute_activity(
+            bitable_sync_requirement,
+            {
+                "req_id": req.req_id,
+                "lifecycle_state": "prd_generated",
+                "current_phase": "P1",
+                "cost_used_usd": self.cost_used_usd,
+                "updated_at": workflow.now().isoformat(),
+            },
+            task_queue="bitable-sync",
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(maximum_attempts=2, initial_interval=timedelta(seconds=2)),
+        )
+
         if req.chat_id:
             await workflow.execute_activity(
                 feishu_send_card,
@@ -153,6 +189,19 @@ class RequirementWorkflow:
                 task_queue="lite",
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=retry,
+            )
+            await workflow.execute_activity(
+                notify_websocket,
+                args=[req.chat_id, {
+                    "type": "prd_ready",
+                    "phase": "P1",
+                    "req_id": req.req_id,
+                    "workflow_id": workflow.info().workflow_id,
+                    "summary": self.captured.summary,
+                    "ac_count": self.prd.ac_count,
+                }],
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
             )
 
         await workflow.wait_condition(lambda: self._p1_decision is not None, timeout=timedelta(hours=48))
@@ -177,6 +226,23 @@ class RequirementWorkflow:
             start_to_close_timeout=timedelta(minutes=2),
             retry_policy=RetryPolicy(maximum_attempts=3, initial_interval=timedelta(seconds=5)),
         )
+
+        # 同步 PRD 文档链接到飞书表格
+        if self.commit.commit_url:
+            prd_doc_url = f"{self.commit.commit_url.rsplit('/commit/', 1)[0]}/blob/{req.branch}/docs/PRDs/{req.req_id}.md"
+            await workflow.execute_activity(
+                bitable_sync_requirement,
+                {
+                    "req_id": req.req_id,
+                    "lifecycle_state": "approved",
+                    "current_phase": "P1-DONE",
+                    "prd_doc_url": prd_doc_url,
+                    "updated_at": workflow.now().isoformat(),
+                },
+                task_queue="bitable-sync",
+                start_to_close_timeout=timedelta(seconds=30),
+                retry_policy=RetryPolicy(maximum_attempts=2, initial_interval=timedelta(seconds=2)),
+            )
 
         if req.chat_id:
             await workflow.execute_activity(
