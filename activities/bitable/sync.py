@@ -30,13 +30,12 @@ async def _find_record_by_req_id(
     table_id: str,
     req_id: str,
 ) -> Optional[dict]:
-    """根据 req_id 查找记录"""
+    """根据 req_id 查找记录（简化版：通过文本字段匹配）"""
     try:
-        # 使用筛选条件查询
+        # 列出所有记录，在内存中匹配
         request = ListAppTableRecordRequest.builder() \
             .app_token(app_token) \
             .table_id(table_id) \
-            .filter(f'CurrentValue.[req_id]="{req_id}"') \
             .build()
 
         response = client.bitable.v1.app_table_record.list(request)
@@ -45,12 +44,15 @@ async def _find_record_by_req_id(
             log.error("failed to list records: %s", response.msg)
             return None
 
-        if response.data and response.data.items and len(response.data.items) > 0:
-            item = response.data.items[0]
-            return {
-                "record_id": item.record_id,
-                "fields": item.fields,
-            }
+        if response.data and response.data.items:
+            # 在内存中查找匹配 req_id 的记录
+            for item in response.data.items:
+                text_field = item.fields.get("文本", "")
+                if text_field and text_field.startswith(req_id):
+                    return {
+                        "record_id": item.record_id,
+                        "fields": item.fields,
+                    }
 
         return None
 
@@ -98,34 +100,12 @@ async def bitable_sync_requirement(req_data: dict) -> dict:
         .app_secret(settings.feishu_app_secret) \
         .build()
 
-    # 构建记录数据
-    fields = {
-        "req_id": req_data["req_id"],
-        "title": req_data.get("title", ""),
-        "project": req_data.get("project", "HealthAssit"),
-        "created_by": req_data.get("created_by", ""),
-        "lifecycle_state": req_data.get("lifecycle_state", ""),
-        "current_phase": req_data.get("current_phase", ""),
-        "cost_used_usd": req_data.get("cost_used_usd", 0.0),
-        "created_at": req_data.get("created_at", datetime.now().isoformat()),
-        "updated_at": req_data.get("updated_at", datetime.now().isoformat()),
-    }
+    # 构建记录数据 - 简化版本，只使用文本字段
+    summary = f"{req_data['req_id']} - {req_data.get('title', '')} [{req_data.get('lifecycle_state', '')}] {req_data.get('current_phase', '')}"
 
-    # 可选字段
-    if "cost_cap_usd" in req_data:
-        fields["cost_cap_usd"] = req_data["cost_cap_usd"]
-    if "priority" in req_data:
-        fields["priority"] = req_data["priority"]
-    if "risk_level" in req_data:
-        fields["risk_level"] = req_data["risk_level"]
-    if "prd_doc_url" in req_data:
-        fields["prd_doc_url"] = req_data["prd_doc_url"]
-    if "design_doc_url" in req_data:
-        fields["design_doc_url"] = req_data["design_doc_url"]
-    if "code_pr_url" in req_data:
-        fields["code_pr_url"] = req_data["code_pr_url"]
-    if "rework_count" in req_data:
-        fields["rework_count"] = req_data["rework_count"]
+    fields = {
+        "文本": summary
+    }
 
     activity.heartbeat({"req_id": req_data["req_id"], "stage": "checking_existing"})
 
