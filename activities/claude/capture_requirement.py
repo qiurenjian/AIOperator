@@ -36,7 +36,7 @@ async def claude_capture_requirement(req: RequirementInput) -> CapturedRequireme
     activity.heartbeat({"req_id": req.req_id, "stage": "calling_anthropic"})
 
     resp = await client.messages.create(
-        model="claude-haiku-4",
+        model="claude-3-5-haiku-20241022",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": f"标题：{req.title}\n描述：{req.raw_text}"}],
