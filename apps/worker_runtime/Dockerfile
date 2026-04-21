@@ -26,7 +26,8 @@ RUN pip install --upgrade pip && pip install \
     "pydantic-settings>=2.6.0" \
     "python-dotenv>=1.0.1" \
     "structlog>=24.4.0" \
-    "jinja2>=3.1.4"
+    "jinja2>=3.1.4" \
+    "lark-oapi>=1.3.0"
 
 COPY aiop /app/aiop
 COPY activities /app/activities
