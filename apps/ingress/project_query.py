@@ -114,7 +114,7 @@ class ProjectQueryService:
             f"📊 **{project['name']}** 项目概览\n",
             f"🆔 项目ID: `{project['project_id']}`",
             f"📦 仓库: {project['repo_url'] or 'N/A'}",
-            f"🌿 分支: {project['default_branch']}",
+            f"🌿 分支: {project['default_branch'] or 'N/A'}",
             f"\n📈 **统计信息**",
             f"• 总需求数: {stats.get('total_count', 0)}",
             f"• 进行中: {stats.get('in_progress_count', 0)}",
