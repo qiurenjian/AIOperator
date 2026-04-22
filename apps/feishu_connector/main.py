@@ -64,12 +64,12 @@ async def handle_message_event(event):
             import re
             match = re.search(r'切换到?\s*([a-zA-Z0-9_-]+)', text)
             if match:
-                project_id = match.group(1)
+                project_id = match.group(1).lower()  # 转为小写
                 session.project_id = project_id
                 await send_feishu_message(chat_id, f"✅ 已切换到项目: {project_id}")
                 return
             else:
-                await send_feishu_message(chat_id, "❌ 请指定项目ID，例如：切换到 HealthAssit")
+                await send_feishu_message(chat_id, "❌ 请指定项目ID，例如：切换到 healthassit")
                 return
 
         # 意图分类
