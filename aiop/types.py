@@ -16,7 +16,7 @@ class RequirementInput(BaseModel):
     req_id: str
     title: str
     raw_text: str
-    project: str = "healthassit"
+    project_id: str = "healthassit"  # 项目ID，用于关联数据库中的项目
     created_by: str
     chat_id: Optional[str] = None
     cost_cap_usd: float = 20.0

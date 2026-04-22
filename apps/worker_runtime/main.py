@@ -13,6 +13,11 @@ from temporalio.worker import Worker
 
 from activities.claude.capture_requirement import claude_capture_requirement
 from activities.claude.generate_prd import claude_generate_prd
+from activities.db import (
+    sync_requirement_index_create,
+    sync_requirement_index_deliverables,
+    sync_requirement_index_state,
+)
 from activities.feishu.send_card import feishu_send_card
 from activities.feishu.send_message import feishu_send_message
 from activities.git.commit import git_commit
@@ -27,7 +32,14 @@ log = logging.getLogger("worker")
 QUEUE_REGISTRY: dict[str, dict] = {
     "lite": {
         "workflows": [RequirementWorkflow],
-        "activities": [feishu_send_card, feishu_send_message, notify_websocket],
+        "activities": [
+            feishu_send_card,
+            feishu_send_message,
+            notify_websocket,
+            sync_requirement_index_create,
+            sync_requirement_index_state,
+            sync_requirement_index_deliverables,
+        ],
     },
     "llm-cloud": {
         "workflows": [],

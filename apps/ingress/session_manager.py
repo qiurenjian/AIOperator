@@ -23,6 +23,7 @@ class Session:
     context: list[Message] = field(default_factory=list)
     conversation: ConversationContext = field(default_factory=ConversationContext)
     active_workflow_id: str | None = None
+    project_id: str | None = None  # 当前项目上下文
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
 

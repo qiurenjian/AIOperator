@@ -10,6 +10,11 @@ from temporalio.exceptions import ApplicationError
 with workflow.unsafe.imports_passed_through():
     from activities.claude.capture_requirement import claude_capture_requirement
     from activities.claude.generate_prd import claude_generate_prd
+    from activities.db import (
+        sync_requirement_index_create,
+        sync_requirement_index_deliverables,
+        sync_requirement_index_state,
+    )
     from activities.feishu.cards import captured_card, commit_card, prd_card
     from activities.feishu.send_card import SendCardInput, feishu_send_card
     from activities.feishu.send_message import feishu_send_message
@@ -67,9 +72,35 @@ class RequirementWorkflow:
     async def run(self, req: RequirementInput) -> dict:
         retry = RetryPolicy(maximum_attempts=2, initial_interval=timedelta(seconds=2))
 
+        # ---------- 创建需求索引 ----------
+        await workflow.execute_activity(
+            sync_requirement_index_create,
+            args=[
+                req.req_id,
+                req.project_id,
+                workflow.info().workflow_id,
+                req.title,
+                req.created_by,
+                req.cost_cap_usd,
+            ],
+            task_queue="lite",
+            start_to_close_timeout=timedelta(seconds=10),
+            retry_policy=retry,
+        )
+
         # ---------- P0: 捕获需求 ----------
         self.current_phase = "P0"
         self.lifecycle_state = "in_progress"
+
+        # 同步状态到数据库
+        await workflow.execute_activity(
+            sync_requirement_index_state,
+            args=[req.req_id],
+            kwargs={"lifecycle_state": "in_progress", "current_phase": "P0"},
+            task_queue="lite",
+            start_to_close_timeout=timedelta(seconds=10),
+            retry_policy=retry,
+        )
 
         # Cost control check
         if req.cost_cap_usd and req.cost_cap_usd > 0:
@@ -108,6 +139,21 @@ class RequirementWorkflow:
                 retry_policy=retry,
             )
             self.cost_used_usd += self.captured.cost_usd
+
+            # 同步 P0 结果到数据库
+            await workflow.execute_activity(
+                sync_requirement_index_state,
+                args=[req.req_id],
+                kwargs={
+                    "lifecycle_state": "captured",
+                    "cost_used_usd": self.cost_used_usd,
+                    "risk_level": self.captured.suggested_risk,
+                    "summary": self.captured.summary,
+                },
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
+                retry_policy=retry,
+            )
         except Exception as e:
             if req.chat_id:
                 await workflow.execute_activity(
@@ -198,6 +244,20 @@ class RequirementWorkflow:
                 retry_policy=RetryPolicy(maximum_attempts=2, initial_interval=timedelta(seconds=10)),
             )
             self.cost_used_usd += self.prd.cost_usd
+
+            # 同步 P1 结果到数据库
+            await workflow.execute_activity(
+                sync_requirement_index_state,
+                args=[req.req_id],
+                kwargs={
+                    "lifecycle_state": "prd_generated",
+                    "current_phase": "P1",
+                    "cost_used_usd": self.cost_used_usd,
+                },
+                task_queue="lite",
+                start_to_close_timeout=timedelta(seconds=10),
+                retry_policy=retry,
+            )
         except Exception as e:
             if req.chat_id:
                 await workflow.execute_activity(
@@ -293,6 +353,22 @@ class RequirementWorkflow:
                     retry_policy=retry,
                 )
             raise
+
+        # 同步交付物链接到数据库
+        prd_doc_url = f"{self.commit.commit_url.rsplit('/commit/', 1)[0]}/blob/{req.branch}/docs/PRDs/{req.req_id}.md"
+        await workflow.execute_activity(
+            sync_requirement_index_state,
+            args=[req.req_id],
+            kwargs={
+                "lifecycle_state": "approved",
+                "current_phase": "P1-DONE",
+                "prd_doc_url": prd_doc_url,
+                "commit_url": self.commit.commit_url,
+            },
+            task_queue="lite",
+            start_to_close_timeout=timedelta(seconds=10),
+            retry_policy=retry,
+        )
 
         if req.chat_id:
             await workflow.execute_activity(

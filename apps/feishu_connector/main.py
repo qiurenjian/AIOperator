@@ -58,6 +58,20 @@ async def handle_message_event(event):
         session = session_manager.get_or_create(chat_id, sender_id)
         session.add_message("user", text)
 
+        # 检查是否是项目切换命令
+        if "切换到" in text or "切换项目" in text:
+            # 提取项目ID
+            import re
+            match = re.search(r'切换到?\s*([a-zA-Z0-9_-]+)', text)
+            if match:
+                project_id = match.group(1)
+                session.project_id = project_id
+                await send_feishu_message(chat_id, f"✅ 已切换到项目: {project_id}")
+                return
+            else:
+                await send_feishu_message(chat_id, "❌ 请指定项目ID，例如：切换到 HealthAssit")
+                return
+
         # 意图分类
         intent = await classify_intent(text, session.get_recent_context(n=5))
         log.info("classified intent: %s (%.2f)", intent.type, intent.confidence)
@@ -71,6 +85,14 @@ async def handle_message_event(event):
 
         elif intent.type == IntentType.REQUIREMENT:
             # 需求提交模式
+            # 检查是否已设置项目
+            if not session.project_id:
+                await send_feishu_message(
+                    chat_id,
+                    "❌ 请先切换到具体项目\n提示：发送「切换到 [项目ID]」\n例如：切换到 HealthAssit"
+                )
+                return
+
             reply = "收到需求，正在分析和生成 PRD，请稍候..."
             await send_feishu_message(chat_id, reply)
 
@@ -87,6 +109,7 @@ async def handle_message_event(event):
                 chat_id=chat_id,
                 repo_url=settings.healthassit_repo,
                 branch=settings.healthassit_default_branch,
+                project_id=session.project_id,  # 使用 session 中的项目ID
             )
 
             workflow_id = f"req-{chat_id}-{message_id}"
