@@ -5,9 +5,8 @@ import logging
 
 from apps.ingress.project_query import ProjectQueryService
 from apps.ingress.session_manager import SessionManager
+from apps.ingress.temporal_client import get_temporal_client
 from temporalio.client import WorkflowExecutionStatus
-
-from aiop.temporal_client import get_temporal_client
 
 log = logging.getLogger(__name__)
 
