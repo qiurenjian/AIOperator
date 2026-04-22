@@ -11,7 +11,8 @@ RUN pip install --upgrade pip && pip install \
     "pydantic-settings>=2.6.0" \
     "python-dotenv>=1.0.1" \
     "structlog>=24.4.0" \
-    "lark-oapi>=1.3.0"
+    "lark-oapi>=1.3.0" \
+    "asyncpg>=0.29.0"
 
 # 复制代码
 COPY aiop /app/aiop

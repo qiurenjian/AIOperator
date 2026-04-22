@@ -27,7 +27,8 @@ RUN pip install --upgrade pip && pip install \
     "python-dotenv>=1.0.1" \
     "structlog>=24.4.0" \
     "jinja2>=3.1.4" \
-    "lark-oapi>=1.3.0"
+    "lark-oapi>=1.3.0" \
+    "asyncpg>=0.29.0"
 
 COPY aiop /app/aiop
 COPY activities /app/activities
