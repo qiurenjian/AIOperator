@@ -15,10 +15,21 @@ from typing import Optional
 from temporalio.client import WorkflowFailureError, RPCError
 
 from apps.ingress.conversation_state import ConversationPhase
-from apps.ingress.session_manager import Session
+from apps.ingress.session_manager import Session, SessionManager
 from apps.ingress.temporal_client import get_temporal_client
 
 log = logging.getLogger(__name__)
+
+
+async def handle_status_query(text: str, chat_id: str) -> str:
+    """处理飞书查询请求"""
+    session_manager = SessionManager()
+    session = session_manager.get_session(chat_id)
+
+    if not session or not session.workflow_ids:
+        return "暂无进行中的需求任务"
+
+    return await query_task_status(session, timeout=5.0)
 
 
 PHASE_DISPLAY_NAMES = {

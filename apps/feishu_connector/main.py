@@ -17,6 +17,7 @@ from aiop.settings import get_settings
 from apps.ingress.chat_handler import handle_chat
 from apps.ingress.intent_classifier import IntentType, classify_intent
 from apps.ingress.session_manager import SessionManager
+from apps.ingress.status_query import handle_status_query
 from apps.ingress.temporal_client import get_temporal_client
 from aiop.types import RequirementInput
 
@@ -101,7 +102,8 @@ async def handle_message_event(event):
 
         elif intent.type == IntentType.QUERY:
             # 查询模式
-            reply = "查询功能开发中，敬请期待..."
+            reply = await handle_status_query(text, chat_id)
+            session.add_message("assistant", reply)
             await send_feishu_message(chat_id, reply)
 
         else:
