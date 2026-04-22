@@ -11,10 +11,10 @@ from temporalio.client import Client
 from temporalio.contrib.pydantic import pydantic_data_converter
 from temporalio.worker import Worker
 
-from activities.bitable.sync import bitable_sync_requirement
 from activities.claude.capture_requirement import claude_capture_requirement
 from activities.claude.generate_prd import claude_generate_prd
 from activities.feishu.send_card import feishu_send_card
+from activities.feishu.send_message import feishu_send_message
 from activities.git.commit import git_commit
 from activities.websocket.notify import notify_websocket
 from aiop.settings import get_settings
@@ -27,7 +27,7 @@ log = logging.getLogger("worker")
 QUEUE_REGISTRY: dict[str, dict] = {
     "lite": {
         "workflows": [RequirementWorkflow],
-        "activities": [feishu_send_card, notify_websocket],
+        "activities": [feishu_send_card, feishu_send_message, notify_websocket],
     },
     "llm-cloud": {
         "workflows": [],
@@ -36,10 +36,6 @@ QUEUE_REGISTRY: dict[str, dict] = {
     "git-ops": {
         "workflows": [],
         "activities": [git_commit],
-    },
-    "bitable-sync": {
-        "workflows": [],
-        "activities": [bitable_sync_requirement],
     },
     "feishu-callback": {
         "workflows": [],
