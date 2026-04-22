@@ -20,12 +20,24 @@ async def init_db_pool() -> Pool:
     global _pool
     if _pool is None:
         settings = get_settings()
+        # 从 database_url 解析连接参数
+        # 格式: postgresql+asyncpg://user:password@host:port/database
+        import re
+        match = re.match(
+            r'postgresql\+asyncpg://([^:]+):([^@]+)@([^:]+):(\d+)/(.+)',
+            settings.database_url
+        )
+        if not match:
+            raise ValueError(f"Invalid database_url format: {settings.database_url}")
+
+        user, password, host, port, database = match.groups()
+
         _pool = await asyncpg.create_pool(
-            host=settings.postgres_host,
-            port=settings.postgres_port,
-            user=settings.postgres_user,
-            password=settings.postgres_password,
-            database=settings.postgres_db,
+            host=host,
+            port=int(port),
+            user=user,
+            password=password,
+            database=database,
             min_size=2,
             max_size=10,
         )
