@@ -15,15 +15,17 @@ async def handle_status_query(text: str, chat_id: str) -> str:
     """处理飞书查询请求"""
     text_lower = text.lower().strip()
 
-    # 项目列表查询
+    # 项目列表查询（不需要 session）
     if "项目列表" in text or "所有项目" in text:
         projects = await ProjectQueryService.list_projects(status="active")
         return await ProjectQueryService.format_project_list(projects)
 
+    # 获取已存在的 session（不创建新的）
+    session = SessionManager.get(chat_id)
+
     # 项目详情查询
     if "项目详情" in text or "项目概览" in text or "项目统计" in text:
-        session = SessionManager.get_or_create(chat_id, user_id="")
-        if not session.project_id:
+        if not session or not session.project_id:
             return "❌ 请先切换到具体项目\n提示：发送「切换到 [项目ID]」"
 
         summary = await ProjectQueryService.get_project_summary(session.project_id)
@@ -31,8 +33,7 @@ async def handle_status_query(text: str, chat_id: str) -> str:
 
     # 项目需求列表
     if "需求列表" in text or "项目需求" in text:
-        session = SessionManager.get_or_create(chat_id, user_id="")
-        if not session.project_id:
+        if not session or not session.project_id:
             return "❌ 请先切换到具体项目\n提示：发送「切换到 [项目ID]」"
 
         requirements = await ProjectQueryService.get_project_requirements(session.project_id)
@@ -40,8 +41,7 @@ async def handle_status_query(text: str, chat_id: str) -> str:
 
     # 当前任务状态（原有功能）
     if "当前" in text or "进度" in text or "状态" in text:
-        session = SessionManager.get_or_create(chat_id, user_id="")
-        if not session.active_workflow_id:
+        if not session or not session.active_workflow_id:
             return "❌ 暂无进行中的需求任务"
 
         return await query_task_status(session.active_workflow_id)
