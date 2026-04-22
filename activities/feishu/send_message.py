@@ -1,6 +1,7 @@
 """飞书文本消息发送 Activity"""
 from __future__ import annotations
 
+import json
 import logging
 
 from lark_oapi import Client
@@ -36,7 +37,7 @@ async def feishu_send_message(chat_id: str, message: str) -> None:
             CreateMessageRequestBody.builder()
             .receive_id(chat_id)
             .msg_type("text")
-            .content(f'{{"text":"{message}"}}')
+            .content(json.dumps({"text": message}))
             .build()
         ) \
         .build()
