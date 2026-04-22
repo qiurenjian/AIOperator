@@ -120,6 +120,6 @@ class ProjectQueryService:
             f"• 进行中: {stats.get('in_progress_count', 0)}",
             f"• 已批准: {stats.get('approved_count', 0)}",
             f"• 已发布: {stats.get('released_count', 0)}",
-            f"• 总成本: ${stats.get('total_cost', 0.0):.2f}",
+            f"• 总成本: ${stats.get('total_cost') or 0.0:.2f}",
         ]
         return "\n".join(lines)
