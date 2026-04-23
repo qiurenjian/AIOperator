@@ -3,8 +3,10 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Optional
 
 from apps.ingress.conversation_state import ConversationContext
+from apps.ingress.dialogue_state import DialogueState, RequirementDraft
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +29,17 @@ class Session:
     created_at: datetime = field(default_factory=datetime.utcnow)
     last_active: datetime = field(default_factory=datetime.utcnow)
 
+    # 对话状态机相关字段
+    dialogue_state: DialogueState = DialogueState.IDLE
+    state_entered_at: datetime = field(default_factory=datetime.utcnow)
+
+    # 澄清过程数据
+    clarification_questions: list[str] = field(default_factory=list)
+    clarification_answers: list[str] = field(default_factory=list)
+
+    # 需求草稿
+    requirement_draft: Optional[RequirementDraft] = None
+
     def add_message(self, role: str, content: str):
         self.context.append(Message(role=role, content=content))
         self.last_active = datetime.utcnow()
@@ -35,6 +48,27 @@ class Session:
 
     def get_recent_context(self, n: int = 5) -> list[Message]:
         return self.context[-n:]
+
+    def enter_state(self, new_state: DialogueState):
+        """进入新状态"""
+        self.dialogue_state = new_state
+        self.state_entered_at = datetime.utcnow()
+        log.info("chat_id=%s entered state %s", self.chat_id, new_state)
+
+    def add_clarification(self, question: str, answer: str):
+        """添加澄清问答"""
+        self.clarification_questions.append(question)
+        self.clarification_answers.append(answer)
+
+    def get_state_duration(self) -> timedelta:
+        """获取当前状态持续时间"""
+        return datetime.utcnow() - self.state_entered_at
+
+    def reset_clarification(self):
+        """重置澄清数据"""
+        self.clarification_questions = []
+        self.clarification_answers = []
+        self.requirement_draft = None
 
 
 class SessionManager:

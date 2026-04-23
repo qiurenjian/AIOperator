@@ -14,10 +14,9 @@ from lark_oapi.api.im.v1 import (
 )
 
 from aiop.settings import get_settings
-from apps.ingress.chat_handler import handle_chat
-from apps.ingress.intent_classifier import IntentType, classify_intent
+from apps.ingress.dialogue_manager import DialogueStateManager
+from apps.ingress.dialogue_state import Action, DialogueState
 from apps.ingress.session_manager import SessionManager
-from apps.ingress.status_query import handle_status_query
 from apps.ingress.temporal_client import get_temporal_client
 from aiop.types import RequirementInput
 
@@ -28,6 +27,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 session_manager = SessionManager()
+dialogue_manager = DialogueStateManager()
 
 
 async def handle_message_event(event):
@@ -72,44 +72,47 @@ async def handle_message_event(event):
                 await send_feishu_message(chat_id, "❌ 请指定项目ID，例如：切换到 healthassit")
                 return
 
-        # 意图分类
-        intent = await classify_intent(text, session.get_recent_context(n=5))
-        log.info("classified intent: %s (%.2f)", intent.type, intent.confidence)
+        # 使用对话状态管理器处理消息
+        transition = await dialogue_manager.handle_message(session, text)
 
-        # 根据意图处理
-        if intent.type == IntentType.CHAT:
-            # 对话模式
-            reply = await handle_chat(text, session)
-            session.add_message("assistant", reply)
-            await send_feishu_message(chat_id, reply)
+        # 执行状态转换
+        session.enter_state(transition.next_state)
 
-        elif intent.type == IntentType.REQUIREMENT:
-            # 需求提交模式
+        # 执行动作
+        if transition.action == Action.EXECUTE:
             # 检查是否已设置项目
             if not session.project_id:
                 await send_feishu_message(
                     chat_id,
-                    "❌ 请先切换到具体项目\n提示：发送「切换到 [项目ID]」\n例如：切换到 HealthAssit"
+                    "❌ 请先切换到具体项目\n提示：发送「切换到 [项目ID]」\n例如：切换到 healthassit"
                 )
+                session.enter_state(DialogueState.IDLE)
                 return
-
-            reply = "收到需求，正在分析和生成 PRD，请稍候..."
-            await send_feishu_message(chat_id, reply)
 
             # 启动 workflow
             settings = get_settings()
             client = await get_temporal_client()
 
             req_id = f"req-{message_id}"
+
+            # 从需求草稿生成 workflow 输入
+            draft = session.requirement_draft
+            if draft:
+                title = draft.title
+                raw_text = f"{draft.description}\n\n关键功能：\n" + "\n".join(f"- {f}" for f in draft.features)
+            else:
+                title = text[:100]
+                raw_text = text
+
             workflow_input = RequirementInput(
                 req_id=req_id,
-                title=text[:100],  # 使用前100字符作为标题
-                raw_text=text,
+                title=title,
+                raw_text=raw_text,
                 created_by=sender_id,
                 chat_id=chat_id,
                 repo_url=settings.healthassit_repo,
                 branch=settings.healthassit_default_branch,
-                project_id=session.project_id,  # 使用 session 中的项目ID
+                project_id=session.project_id,
             )
 
             workflow_id = f"req-{chat_id}-{message_id}"
@@ -121,18 +124,36 @@ async def handle_message_event(event):
                 task_queue="lite",
             )
 
+            session.active_workflow_id = workflow_id
             log.info("started workflow %s for requirement", workflow_id)
 
-        elif intent.type == IntentType.QUERY:
-            # 查询模式
-            reply = await handle_status_query(text, chat_id)
-            session.add_message("assistant", reply)
-            await send_feishu_message(chat_id, reply)
+            # 发送确认消息
+            await send_feishu_message(
+                chat_id,
+                f"✅ 需求已提交，正在处理...\nWorkflow ID: {workflow_id}\n\n🔍 正在分析需求..."
+            )
+
+        elif transition.action == Action.CANCEL:
+            # 取消 workflow
+            if session.active_workflow_id and transition.metadata and transition.metadata.get("cancel_workflow"):
+                try:
+                    client = await get_temporal_client()
+                    handle = client.get_workflow_handle(session.active_workflow_id)
+                    await handle.cancel()
+                    log.info("cancelled workflow %s", session.active_workflow_id)
+                    session.active_workflow_id = None
+                except Exception as e:
+                    log.error("failed to cancel workflow: %s", e)
+
+            # 发送响应
+            await send_feishu_message(chat_id, transition.response)
 
         else:
-            # 其他意图
-            reply = "抱歉，我还不太理解你的意思，可以换个方式说吗？"
-            await send_feishu_message(chat_id, reply)
+            # 发送响应
+            await send_feishu_message(chat_id, transition.response)
+
+        # 记录助手响应
+        session.add_message("assistant", transition.response)
 
     except Exception as e:
         log.error("failed to handle message event: %s", e, exc_info=True)
