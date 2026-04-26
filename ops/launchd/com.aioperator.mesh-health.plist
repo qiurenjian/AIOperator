@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.aioperator.mesh-health</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/renjianqiu/projects/AIOperator/scripts/mesh_healthcheck.sh</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/renjianqiu/Library/Logs/aiop-mesh-health.launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/renjianqiu/Library/Logs/aiop-mesh-health.launchd.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LOG_FILE</key>
+    <string>/Users/renjianqiu/Library/Logs/aiop-mesh-health.log</string>
+  </dict>
+</dict>
+</plist>

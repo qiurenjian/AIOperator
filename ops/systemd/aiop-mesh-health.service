@@ -1,0 +1,9 @@
+[Unit]
+Description=AIOperator Tailscale SSH mesh health check
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=LOG_FILE=/var/log/aiop-mesh-health.log
+ExecStart=/root/AIOperator/scripts/mesh_healthcheck.sh
